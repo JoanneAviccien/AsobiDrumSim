@@ -1,0 +1,31 @@
+RAYLIB_PATH = C:/raylib/raylib/src
+
+CC     = gcc
+CFLAGS = -Wall -O2 -I. -Isrc/algo -Isrc/appscene -I$(RAYLIB_PATH)/
+LIBS   = -L$(RAYLIB_PATH)/ -lraylib -lopengl32 -lgdi32 -lwinmm -lm
+
+TARGET = VDrumKitEX.exe
+
+SRCS = main.c \
+       src/appscene/global.c \
+       src/appscene/menuScreen.c \
+       src/appscene/aboutScreen.c \
+			 src/appscene/jamScreen.c \
+			 src/appscene/appInfoScreen.c \
+			 src/algo/midcircle.c \
+			 src/algo/bresenham.c \
+			 src/algo/dda.c \
+			 src/algo/rect.c \
+			 src/algo/midpoint_ellipse.c
+
+
+all: $(TARGET)
+
+$(TARGET): $(SRCS)
+	$(CC) $(CFLAGS) -o $(TARGET) $(SRCS) $(LIBS)
+
+clean:
+	rm -f $(TARGET)
+
+run: all
+	./$(TARGET)
