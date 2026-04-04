@@ -12,6 +12,9 @@
 static RenderTexture2D backgroundTexture = {0};
 static bool backgroundInitialized = false;
 
+static RenderTexture2D drumKitTexture = {0};
+static bool drumKitTextureInitialized = false;
+
 static NoteAnimation notes[MAX_NOTES];
 static int noteCount = 0;
 
@@ -672,6 +675,277 @@ void CleanupBackgroundTexture(void) {
     backgroundTexture = (RenderTexture2D){0};
     backgroundInitialized = false;
   }
+  
+  if (drumKitTextureInitialized) {
+    UnloadRenderTexture(drumKitTexture);
+    drumKitTexture = (RenderTexture2D){0};
+    drumKitTextureInitialized = false;
+  }
+}
+
+static void renderDrumKitToTexture(DrumKitConfig *mainDrum) {
+  if (drumKitTextureInitialized) {
+    UnloadRenderTexture(drumKitTexture);
+  }
+  
+  drumKitTexture = LoadRenderTexture(scrWidth, scrHeight);
+  drumKitTextureInitialized = true;
+  
+  BeginTextureMode(drumKitTexture);
+  ClearBackground(BLANK);
+  
+  int kickLegLeftX1 = mainDrum->kick.x + mainDrum->kickLegLeftDX[0];
+  int kickLegLeftY1 = mainDrum->kick.y + mainDrum->kickLegLeftDY[0];
+  int kickLegLeftX2 = mainDrum->kick.x + mainDrum->kickLegLeftDX[1];
+  int kickLegLeftY2 = mainDrum->kick.y + mainDrum->kickLegLeftDY[1];
+
+  int kickLegRightX1 = mainDrum->kick.x + mainDrum->kickLegRightDX[0];
+  int kickLegRightY1 = mainDrum->kick.y + mainDrum->kickLegRightDY[0];
+  int kickLegRightX2 = mainDrum->kick.x + mainDrum->kickLegRightDX[1];
+  int kickLegRightY2 = mainDrum->kick.y + mainDrum->kickLegRightDY[1];
+
+  Bres_ThickLine(kickLegLeftX1, kickLegLeftY1, kickLegLeftX2, kickLegLeftY2,
+                 mainDrum->kickStroke + 5, WHITE);
+  Bres_ThickLine(kickLegRightX1, kickLegRightY1, kickLegRightX2, kickLegRightY2,
+                 mainDrum->kickStroke + 5, WHITE);
+  MidcircleFilled(mainDrum->kick.x, mainDrum->kick.y,
+                  mainDrum->kickOuterRadius - mainDrum->kickStroke, BLACK);
+  MidcircleThick(mainDrum->kick.x, mainDrum->kick.y, mainDrum->kickOuterRadius,
+                 mainDrum->kickStroke, WHITE);
+  MidcircleFilled(mainDrum->kick.x, mainDrum->kick.y, mainDrum->kickInnerRadius,
+                  WHITE);
+
+  filledRect(mainDrum->floorTom.x + mainDrum->floorTomStroke,
+             mainDrum->floorTom.y + mainDrum->floorTomStroke,
+             mainDrum->floorTomWidth - mainDrum->floorTomStroke * 2,
+             mainDrum->floorTomHeight - mainDrum->floorTomStroke * 2, BLACK);
+  thickHollowRect(mainDrum->floorTom.x, mainDrum->floorTom.y,
+                  mainDrum->floorTomWidth, mainDrum->floorTomHeight,
+                  mainDrum->floorTomStroke, WHITE);
+  thickHollowRect(mainDrum->floorTom.x - 5,
+                  mainDrum->floorTom.y + mainDrum->floorTomRimBottomDY,
+                  mainDrum->floorTomRimWidth, mainDrum->floorTomRimHeight,
+                  mainDrum->floorTomRimStroke, WHITE);
+  thickHollowRect(mainDrum->floorTom.x - 5,
+                  mainDrum->floorTom.y + mainDrum->floorTomRimTopDY,
+                  mainDrum->floorTomRimWidth, mainDrum->floorTomRimHeight,
+                  mainDrum->floorTomRimStroke, WHITE);
+
+  int ftLugSpacing = mainDrum->floorTomWidth / (mainDrum->floorTomLugCount - 1);
+  for (int i = 0; i < mainDrum->floorTomLugCount; i++) {
+    int lugX = mainDrum->floorTom.x + (i * ftLugSpacing);
+    Bres_ThickLine(lugX, mainDrum->floorTom.y + mainDrum->floorTomRimTopDY - 5,
+                   lugX,
+                   mainDrum->floorTom.y + mainDrum->floorTomRimTopDY +
+                       mainDrum->floorTomLugHeight,
+                   2, WHITE);
+    Bres_ThickLine(lugX,
+                   mainDrum->floorTom.y + mainDrum->floorTomRimBottomDY -
+                       mainDrum->floorTomLugHeight,
+                   lugX, mainDrum->floorTom.y + mainDrum->floorTomRimBottomDY + 5,
+                   2, WHITE);
+  }
+
+  int ftStandCenterX = mainDrum->floorTom.x + (mainDrum->floorTomWidth / 2);
+  int ftStandTopY = mainDrum->floorTom.y + mainDrum->floorTomRimBottomDY +
+                    mainDrum->floorTomRimHeight;
+
+  for (int i = 0; i < mainDrum->floorTomLegCount; i++) {
+    int legStartX = mainDrum->floorTom.x + (i * mainDrum->floorTomWidth / 2);
+    int legStartY = ftStandTopY;
+
+    int legMidX = legStartX + mainDrum->floorTomLegDX[i] / 2;
+    int legMidY = legStartY + mainDrum->floorTomLegDY[i] / 2;
+
+    int legEndX = ftStandCenterX + mainDrum->floorTomLegFootDX[i];
+    int legEndY = ftStandTopY + mainDrum->floorTomLegFootDY[i];
+
+    Bres_ThickLine(legStartX, legStartY, legMidX, legMidY, 5, WHITE);
+    Bres_ThickLine(legMidX, legMidY, legEndX, legEndY, 5, WHITE);
+  }
+
+  filledRect(mainDrum->tom1.x + mainDrum->tomStroke,
+             mainDrum->tom1.y + mainDrum->tomStroke,
+             mainDrum->tomWidth - mainDrum->tomStroke * 2,
+             mainDrum->tomHeight - mainDrum->tomStroke * 2, BLACK);
+  thickHollowRect(mainDrum->tom1.x, mainDrum->tom1.y, mainDrum->tomWidth,
+                  mainDrum->tomHeight, mainDrum->tomStroke, WHITE);
+  thickHollowRect(mainDrum->tom1.x - 5,
+                  mainDrum->tom1.y + mainDrum->tomRimBottomDY,
+                  mainDrum->tomRimWidth, mainDrum->tomRimHeight,
+                  mainDrum->tomRimStroke, WHITE);
+  thickHollowRect(mainDrum->tom1.x - 5, mainDrum->tom1.y + mainDrum->tomRimTopDY,
+                  mainDrum->tomRimWidth, mainDrum->tomRimHeight,
+                  mainDrum->tomRimStroke, WHITE);
+
+  filledRect(mainDrum->tom2.x + mainDrum->tomStroke,
+             mainDrum->tom2.y + mainDrum->tomStroke,
+             mainDrum->tomWidth - mainDrum->tomStroke * 2,
+             mainDrum->tomHeight - mainDrum->tomStroke * 2, BLACK);
+  thickHollowRect(mainDrum->tom2.x, mainDrum->tom2.y, mainDrum->tomWidth,
+                  mainDrum->tomHeight, mainDrum->tomStroke, WHITE);
+  thickHollowRect(mainDrum->tom2.x - 5,
+                  mainDrum->tom2.y + mainDrum->tomRimBottomDY,
+                  mainDrum->tomRimWidth, mainDrum->tomRimHeight,
+                  mainDrum->tomRimStroke, WHITE);
+  thickHollowRect(mainDrum->tom2.x - 5, mainDrum->tom2.y + mainDrum->tomRimTopDY,
+                  mainDrum->tomRimWidth, mainDrum->tomRimHeight,
+                  mainDrum->tomRimStroke, WHITE);
+
+  int tom1LugSpacing = mainDrum->tomWidth / (mainDrum->tomLugCount - 1);
+  for (int i = 0; i < mainDrum->tomLugCount; i++) {
+    int lugX = mainDrum->tom1.x + (i * tom1LugSpacing);
+    Bres_ThickLine(lugX, mainDrum->tom1.y + mainDrum->tomRimTopDY - 5, lugX,
+                   mainDrum->tom1.y + mainDrum->tomRimTopDY +
+                       mainDrum->tomLugHeight,
+                   2, WHITE);
+    Bres_ThickLine(
+        lugX, mainDrum->tom1.y + mainDrum->tomRimBottomDY - mainDrum->tomLugHeight,
+        lugX, mainDrum->tom1.y + mainDrum->tomRimBottomDY + 5, 2, WHITE);
+  }
+
+  int tom2LugSpacing = mainDrum->tomWidth / (mainDrum->tomLugCount - 1);
+  for (int i = 0; i < mainDrum->tomLugCount; i++) {
+    int lugX = mainDrum->tom2.x + (i * tom2LugSpacing);
+    Bres_ThickLine(lugX, mainDrum->tom2.y + mainDrum->tomRimTopDY - 5, lugX,
+                   mainDrum->tom2.y + mainDrum->tomRimTopDY +
+                       mainDrum->tomLugHeight,
+                   2, WHITE);
+    Bres_ThickLine(
+        lugX, mainDrum->tom2.y + mainDrum->tomRimBottomDY - mainDrum->tomLugHeight,
+        lugX, mainDrum->tom2.y + mainDrum->tomRimBottomDY + 5, 2, WHITE);
+  }
+  int tomBarY = mainDrum->tom1.y + mainDrum->tomBarDY;
+  int tomBarXStart = mainDrum->tom1.x + mainDrum->tomBarDX;
+  Bres_ThickLine(tomBarXStart, tomBarY, mainDrum->tom2.x, tomBarY,
+                 mainDrum->tomStroke, WHITE);
+  Bres_ThickLine(tomBarXStart, tomBarY + 20, mainDrum->tom2.x - 24, tomBarY + 20,
+                 mainDrum->tomStroke, WHITE);
+  Bres_ThickLine(mainDrum->tom2.x, tomBarY + 20, mainDrum->tom2.x - 6,
+                 tomBarY + 20, mainDrum->tomStroke, WHITE);
+  Bres_ThickLine(mainDrum->tom2.x - 24, tomBarY + 20, mainDrum->tom2.x - 24,
+                 tomBarY + 70, mainDrum->tomStroke, WHITE);
+  Bres_ThickLine(mainDrum->tom2.x - 6, tomBarY + 20, mainDrum->tom2.x - 6,
+                 tomBarY + 70, mainDrum->tomStroke, WHITE);
+
+  filledRect(mainDrum->snare.x + mainDrum->snareStroke,
+             mainDrum->snare.y + mainDrum->snareStroke,
+             mainDrum->snareWidth - mainDrum->snareStroke * 2,
+             mainDrum->snareHeight - mainDrum->snareStroke * 2, BLACK);
+  thickHollowRect(mainDrum->snare.x, mainDrum->snare.y, mainDrum->snareWidth,
+                  mainDrum->snareHeight, 3, WHITE);
+  thickHollowRect(mainDrum->snare.x - 5,
+                  mainDrum->snare.y + mainDrum->snareRimTopDY,
+                  mainDrum->snareRimWidth, mainDrum->snareRimHeight,
+                  mainDrum->snareRimStroke, WHITE);
+  thickHollowRect(mainDrum->snare.x - 5,
+                  mainDrum->snare.y + mainDrum->snareRimBottomDY,
+                  mainDrum->snareRimWidth, mainDrum->snareRimHeight,
+                  mainDrum->snareRimStroke, WHITE);
+
+  int snareLugSpacing = mainDrum->snareWidth / 5;
+  for (int i = 0; i < 6; i++) {
+    int lugX = mainDrum->snare.x + (i * snareLugSpacing);
+    int lugTopY =
+        mainDrum->snare.y + mainDrum->snareRimTopDY + mainDrum->snareRimHeight;
+    int lugBottomY =
+        mainDrum->snare.y + mainDrum->snareRimBottomDY - mainDrum->snareRimHeight;
+
+    thickHollowRect(lugX - 4, lugTopY, 8, lugBottomY - lugTopY + 5, 2, WHITE);
+
+    Bres_ThickLine(lugX, lugTopY + 3, lugX, lugBottomY, 2, LIGHTGRAY);
+  }
+
+  int snareStandCenterX = mainDrum->snare.x + (mainDrum->snareWidth / 2);
+  int snareStandTopY =
+      mainDrum->snare.y + mainDrum->snareRimBottomDY + mainDrum->snareRimHeight;
+
+  Bres_ThickLine(snareStandCenterX, snareStandTopY, snareStandCenterX,
+                 snareStandTopY + mainDrum->snareStandRod.height,
+                 mainDrum->snareStandRod.width, WHITE);
+
+  int snareLegLeftX1 = snareStandCenterX + mainDrum->snareStandLegLeftDX[1];
+  int snareLegLeftY1 = snareStandTopY + mainDrum->snareStandLegLeftDY[1];
+  int snareLegLeftX2 = snareStandCenterX + mainDrum->snareStandLegLeftDX[0];
+  int snareLegLeftY2 = snareStandTopY + mainDrum->snareStandLegLeftDY[0];
+  Bres_ThickLine(snareLegLeftX1, snareLegLeftY1, snareLegLeftX2, snareLegLeftY2,
+                 4, WHITE);
+
+  int snareLegRightX1 = snareStandCenterX + mainDrum->snareStandLegRightDX[1];
+  int snareLegRightY1 = snareStandTopY + mainDrum->snareStandLegRightDY[1];
+  int snareLegRightX2 = snareStandCenterX + mainDrum->snareStandLegRightDX[0];
+  int snareLegRightY2 = snareStandTopY + mainDrum->snareStandLegRightDY[0];
+  Bres_ThickLine(snareLegRightX1, snareLegRightY1, snareLegRightX2,
+                 snareLegRightY2, 4, WHITE);
+
+  Bres_ThickLine(snareLegLeftX2 - 10, snareLegLeftY2, snareLegLeftX2 + 10,
+                 snareLegLeftY2, 3, WHITE);
+  Bres_ThickLine(snareLegRightX2 - 10, snareLegRightY2, snareLegRightX2 + 10,
+                 snareLegRightY2, 3, WHITE);
+
+  Bres_ThickLine(mainDrum->cymbalStandRodX, mainDrum->cymbalStandRodDY[0],
+                 mainDrum->cymbalStandRodX, mainDrum->cymbalStandRodDY[1], 5,
+                 WHITE);
+
+  Bres_ThickLine(mainDrum->cymbalLegLeftDX[0], mainDrum->cymbalLegLeftDY[0],
+                 mainDrum->cymbalLegLeftDX[1], mainDrum->cymbalLegLeftDY[1], 5,
+                 WHITE);
+
+  Bres_ThickLine(mainDrum->cymbalLegRightDX[0], mainDrum->cymbalLegRightDY[0],
+                 mainDrum->cymbalLegRightDX[1], mainDrum->cymbalLegRightDY[1], 5,
+                 WHITE);
+
+  Bres_ThickLine(mainDrum->cymbalBoomArmDX[0], mainDrum->cymbalBoomArmDY[0],
+                 mainDrum->cymbalBoomArmDX[1], mainDrum->cymbalBoomArmDY[1], 5,
+                 WHITE);
+
+  MidpointEllipseThick(mainDrum->rideCymbal.x, mainDrum->rideCymbal.y,
+                       mainDrum->cymbalRx, mainDrum->cymbalRy, 3, WHITE);
+
+  MidpointHalfEllipse(mainDrum->hiHatTopCX, mainDrum->hiHatTopCY,
+                      mainDrum->hiHatRX, mainDrum->hiHatRY, HALF_ELLIPSE_TOP,
+                      WHITE);
+  MidpointHalfEllipse(mainDrum->hiHatTopCX, mainDrum->hiHatTopCY + 10,
+                      mainDrum->hiHatRX, mainDrum->hiHatRY, HALF_ELLIPSE_BOTTOM,
+                      WHITE);
+  MidpointHalfEllipse(mainDrum->hiHatTopCX, mainDrum->hiHatTopCY,
+                      mainDrum->hiHatRX, mainDrum->hiHatRY, HALF_ELLIPSE_TOP,
+                      WHITE);
+  MidpointHalfEllipse(mainDrum->hiHatTopCX, mainDrum->hiHatTopCY + 10,
+                      mainDrum->hiHatRX, mainDrum->hiHatRY, HALF_ELLIPSE_BOTTOM,
+                      WHITE);
+  BresenhamLine(mainDrum->hiHatTopCX - mainDrum->hiHatRX - 5, mainDrum->hiHatTopCY,
+                mainDrum->hiHatTopCX + mainDrum->hiHatRX + 5, mainDrum->hiHatTopCY,
+                WHITE);
+  BresenhamLine(mainDrum->hiHatTopCX - mainDrum->hiHatRX - 5,
+                mainDrum->hiHatTopCY + 10,
+                mainDrum->hiHatTopCX + mainDrum->hiHatRX + 5,
+                mainDrum->hiHatTopCY + 10, WHITE);
+
+  Bres_ThickLine(mainDrum->hiHatStandRodX, mainDrum->hiHatStandRodDY[0],
+                 mainDrum->hiHatStandRodX, mainDrum->hiHatStandRodDY[1], 5,
+                 WHITE);
+
+  Bres_ThickLine(mainDrum->hiHatBoomArmDX[0], mainDrum->hiHatBoomArmDY[0],
+                 mainDrum->hiHatBoomArmDX[1], mainDrum->hiHatBoomArmDY[1], 4,
+                 WHITE);
+
+  Bres_ThickLine(mainDrum->hiHatLegLeftDX[0], mainDrum->hiHatLegLeftDY[0],
+                 mainDrum->hiHatLegLeftDX[1], mainDrum->hiHatLegLeftDY[1], 5,
+                 WHITE);
+
+  Bres_ThickLine(mainDrum->hiHatLegRightDX[0], mainDrum->hiHatLegRightDY[0],
+                 mainDrum->hiHatLegRightDX[1], mainDrum->hiHatLegRightDY[1], 5,
+                 WHITE);
+
+  Bres_ThickLine(mainDrum->hiHatLegLeftDX[1] - 10, mainDrum->hiHatLegLeftDY[1],
+                 mainDrum->hiHatLegLeftDX[1] + 10, mainDrum->hiHatLegLeftDY[1], 3,
+                 WHITE);
+  Bres_ThickLine(mainDrum->hiHatLegRightDX[1] - 10, mainDrum->hiHatLegRightDY[1],
+                 mainDrum->hiHatLegRightDX[1] + 10, mainDrum->hiHatLegRightDY[1],
+                 3, WHITE);
+  
+  EndTextureMode();
 }
 
 void jamScreen(void) {
@@ -686,10 +960,6 @@ void jamScreen(void) {
                  (Rectangle){0, 0, (float)backgroundTexture.texture.width,
                              -(float)backgroundTexture.texture.height},
                  (Vector2){0, 0}, WHITE);
-
-  Vector2 mousePos = GetMousePosition();
-  DrawText(TextFormat("Screen X: %.0f", mousePos.x), 200, 20, 12, WHITE);
-  DrawText(TextFormat("Screen Y: %.0f", mousePos.y), 200, 40, 12, WHITE);
 
   DrumKitConfig mainDrum = {
       .kick = {.x = scrWidth / 2, .y = (scrHeight / 2) + 80},
@@ -775,6 +1045,15 @@ void jamScreen(void) {
       .hiHatLegRightDX = {162, 215},
       .hiHatLegRightDY = {485, 520}};
 
+  if (!drumKitTextureInitialized) {
+    renderDrumKitToTexture(&mainDrum);
+  }
+
+  DrawTextureRec(drumKitTexture.texture,
+                 (Rectangle){0, 0, (float)drumKitTexture.texture.width,
+                             -(float)drumKitTexture.texture.height},
+                 (Vector2){0, 0}, WHITE);
+
   static int padsInitialized = 0;
   static DrumPad drumPads[MAX_KEYBINDS];
   if (!padsInitialized) {
@@ -784,256 +1063,9 @@ void jamScreen(void) {
 
   UpdateDrumPads(drumPads, MAX_KEYBINDS);
 
-  int kickLegLeftX1 = mainDrum.kick.x + mainDrum.kickLegLeftDX[0];
-  int kickLegLeftY1 = mainDrum.kick.y + mainDrum.kickLegLeftDY[0];
-  int kickLegLeftX2 = mainDrum.kick.x + mainDrum.kickLegLeftDX[1];
-  int kickLegLeftY2 = mainDrum.kick.y + mainDrum.kickLegLeftDY[1];
-
-  int kickLegRightX1 = mainDrum.kick.x + mainDrum.kickLegRightDX[0];
-  int kickLegRightY1 = mainDrum.kick.y + mainDrum.kickLegRightDY[0];
-  int kickLegRightX2 = mainDrum.kick.x + mainDrum.kickLegRightDX[1];
-  int kickLegRightY2 = mainDrum.kick.y + mainDrum.kickLegRightDY[1];
-
-  Bres_ThickLine(kickLegLeftX1, kickLegLeftY1, kickLegLeftX2, kickLegLeftY2,
-                 mainDrum.kickStroke + 5, WHITE);
-  Bres_ThickLine(kickLegRightX1, kickLegRightY1, kickLegRightX2, kickLegRightY2,
-                 mainDrum.kickStroke + 5, WHITE);
-  MidcircleFilled(mainDrum.kick.x, mainDrum.kick.y,
-                  mainDrum.kickOuterRadius - mainDrum.kickStroke, BLACK);
-  MidcircleThick(mainDrum.kick.x, mainDrum.kick.y, mainDrum.kickOuterRadius,
-                 mainDrum.kickStroke, WHITE);
-  MidcircleFilled(mainDrum.kick.x, mainDrum.kick.y, mainDrum.kickInnerRadius,
-                  WHITE);
-
-  filledRect(mainDrum.floorTom.x + mainDrum.floorTomStroke,
-             mainDrum.floorTom.y + mainDrum.floorTomStroke,
-             mainDrum.floorTomWidth - mainDrum.floorTomStroke * 2,
-             mainDrum.floorTomHeight - mainDrum.floorTomStroke * 2, BLACK);
-  thickHollowRect(mainDrum.floorTom.x, mainDrum.floorTom.y,
-                  mainDrum.floorTomWidth, mainDrum.floorTomHeight,
-                  mainDrum.floorTomStroke, WHITE);
-  thickHollowRect(mainDrum.floorTom.x - 5,
-                  mainDrum.floorTom.y + mainDrum.floorTomRimBottomDY,
-                  mainDrum.floorTomRimWidth, mainDrum.floorTomRimHeight,
-                  mainDrum.floorTomRimStroke, WHITE);
-  thickHollowRect(mainDrum.floorTom.x - 5,
-                  mainDrum.floorTom.y + mainDrum.floorTomRimTopDY,
-                  mainDrum.floorTomRimWidth, mainDrum.floorTomRimHeight,
-                  mainDrum.floorTomRimStroke, WHITE);
-
-  int ftLugSpacing = mainDrum.floorTomWidth / (mainDrum.floorTomLugCount - 1);
-  for (int i = 0; i < mainDrum.floorTomLugCount; i++) {
-    int lugX = mainDrum.floorTom.x + (i * ftLugSpacing);
-    Bres_ThickLine(lugX, mainDrum.floorTom.y + mainDrum.floorTomRimTopDY - 5,
-                   lugX,
-                   mainDrum.floorTom.y + mainDrum.floorTomRimTopDY +
-                       mainDrum.floorTomLugHeight,
-                   2, WHITE);
-    Bres_ThickLine(lugX,
-                   mainDrum.floorTom.y + mainDrum.floorTomRimBottomDY -
-                       mainDrum.floorTomLugHeight,
-                   lugX, mainDrum.floorTom.y + mainDrum.floorTomRimBottomDY + 5,
-                   2, WHITE);
-  }
-
-  int ftStandCenterX = mainDrum.floorTom.x + (mainDrum.floorTomWidth / 2);
-  int ftStandTopY = mainDrum.floorTom.y + mainDrum.floorTomRimBottomDY +
-                    mainDrum.floorTomRimHeight;
-
-  for (int i = 0; i < mainDrum.floorTomLegCount; i++) {
-    int legStartX = mainDrum.floorTom.x + (i * mainDrum.floorTomWidth / 2);
-    int legStartY = ftStandTopY;
-
-    int legMidX = legStartX + mainDrum.floorTomLegDX[i] / 2;
-    int legMidY = legStartY + mainDrum.floorTomLegDY[i] / 2;
-
-    int legEndX = ftStandCenterX + mainDrum.floorTomLegFootDX[i];
-    int legEndY = ftStandTopY + mainDrum.floorTomLegFootDY[i];
-
-    Bres_ThickLine(legStartX, legStartY, legMidX, legMidY, 5, WHITE);
-    Bres_ThickLine(legMidX, legMidY, legEndX, legEndY, 5, WHITE);
-  }
-
-  filledRect(mainDrum.tom1.x + mainDrum.tomStroke,
-             mainDrum.tom1.y + mainDrum.tomStroke,
-             mainDrum.tomWidth - mainDrum.tomStroke * 2,
-             mainDrum.tomHeight - mainDrum.tomStroke * 2, BLACK);
-  thickHollowRect(mainDrum.tom1.x, mainDrum.tom1.y, mainDrum.tomWidth,
-                  mainDrum.tomHeight, mainDrum.tomStroke, WHITE);
-  thickHollowRect(mainDrum.tom1.x - 5,
-                  mainDrum.tom1.y + mainDrum.tomRimBottomDY,
-                  mainDrum.tomRimWidth, mainDrum.tomRimHeight,
-                  mainDrum.tomRimStroke, WHITE);
-  thickHollowRect(mainDrum.tom1.x - 5, mainDrum.tom1.y + mainDrum.tomRimTopDY,
-                  mainDrum.tomRimWidth, mainDrum.tomRimHeight,
-                  mainDrum.tomRimStroke, WHITE);
-
-  filledRect(mainDrum.tom2.x + mainDrum.tomStroke,
-             mainDrum.tom2.y + mainDrum.tomStroke,
-             mainDrum.tomWidth - mainDrum.tomStroke * 2,
-             mainDrum.tomHeight - mainDrum.tomStroke * 2, BLACK);
-  thickHollowRect(mainDrum.tom2.x, mainDrum.tom2.y, mainDrum.tomWidth,
-                  mainDrum.tomHeight, mainDrum.tomStroke, WHITE);
-  thickHollowRect(mainDrum.tom2.x - 5,
-                  mainDrum.tom2.y + mainDrum.tomRimBottomDY,
-                  mainDrum.tomRimWidth, mainDrum.tomRimHeight,
-                  mainDrum.tomRimStroke, WHITE);
-  thickHollowRect(mainDrum.tom2.x - 5, mainDrum.tom2.y + mainDrum.tomRimTopDY,
-                  mainDrum.tomRimWidth, mainDrum.tomRimHeight,
-                  mainDrum.tomRimStroke, WHITE);
-
-  int tom1LugSpacing = mainDrum.tomWidth / (mainDrum.tomLugCount - 1);
-  for (int i = 0; i < mainDrum.tomLugCount; i++) {
-    int lugX = mainDrum.tom1.x + (i * tom1LugSpacing);
-    Bres_ThickLine(lugX, mainDrum.tom1.y + mainDrum.tomRimTopDY - 5, lugX,
-                   mainDrum.tom1.y + mainDrum.tomRimTopDY +
-                       mainDrum.tomLugHeight,
-                   2, WHITE);
-    Bres_ThickLine(
-        lugX, mainDrum.tom1.y + mainDrum.tomRimBottomDY - mainDrum.tomLugHeight,
-        lugX, mainDrum.tom1.y + mainDrum.tomRimBottomDY + 5, 2, WHITE);
-  }
-
-  int tom2LugSpacing = mainDrum.tomWidth / (mainDrum.tomLugCount - 1);
-  for (int i = 0; i < mainDrum.tomLugCount; i++) {
-    int lugX = mainDrum.tom2.x + (i * tom2LugSpacing);
-    Bres_ThickLine(lugX, mainDrum.tom2.y + mainDrum.tomRimTopDY - 5, lugX,
-                   mainDrum.tom2.y + mainDrum.tomRimTopDY +
-                       mainDrum.tomLugHeight,
-                   2, WHITE);
-    Bres_ThickLine(
-        lugX, mainDrum.tom2.y + mainDrum.tomRimBottomDY - mainDrum.tomLugHeight,
-        lugX, mainDrum.tom2.y + mainDrum.tomRimBottomDY + 5, 2, WHITE);
-  }
-  int tomBarY = mainDrum.tom1.y + mainDrum.tomBarDY;
-  int tomBarXStart = mainDrum.tom1.x + mainDrum.tomBarDX;
-  Bres_ThickLine(tomBarXStart, tomBarY, mainDrum.tom2.x, tomBarY,
-                 mainDrum.tomStroke, WHITE);
-  Bres_ThickLine(tomBarXStart, tomBarY + 20, mainDrum.tom2.x - 24, tomBarY + 20,
-                 mainDrum.tomStroke, WHITE);
-  Bres_ThickLine(mainDrum.tom2.x, tomBarY + 20, mainDrum.tom2.x - 6,
-                 tomBarY + 20, mainDrum.tomStroke, WHITE);
-  Bres_ThickLine(mainDrum.tom2.x - 24, tomBarY + 20, mainDrum.tom2.x - 24,
-                 tomBarY + 70, mainDrum.tomStroke, WHITE);
-  Bres_ThickLine(mainDrum.tom2.x - 6, tomBarY + 20, mainDrum.tom2.x - 6,
-                 tomBarY + 70, mainDrum.tomStroke, WHITE);
-
-  filledRect(mainDrum.snare.x + mainDrum.snareStroke,
-             mainDrum.snare.y + mainDrum.snareStroke,
-             mainDrum.snareWidth - mainDrum.snareStroke * 2,
-             mainDrum.snareHeight - mainDrum.snareStroke * 2, BLACK);
-  thickHollowRect(mainDrum.snare.x, mainDrum.snare.y, mainDrum.snareWidth,
-                  mainDrum.snareHeight, 3, WHITE);
-  thickHollowRect(mainDrum.snare.x - 5,
-                  mainDrum.snare.y + mainDrum.snareRimTopDY,
-                  mainDrum.snareRimWidth, mainDrum.snareRimHeight,
-                  mainDrum.snareRimStroke, WHITE);
-  thickHollowRect(mainDrum.snare.x - 5,
-                  mainDrum.snare.y + mainDrum.snareRimBottomDY,
-                  mainDrum.snareRimWidth, mainDrum.snareRimHeight,
-                  mainDrum.snareRimStroke, WHITE);
-
-  int snareLugSpacing = mainDrum.snareWidth / 5;
-  for (int i = 0; i < 6; i++) {
-    int lugX = mainDrum.snare.x + (i * snareLugSpacing);
-    int lugTopY =
-        mainDrum.snare.y + mainDrum.snareRimTopDY + mainDrum.snareRimHeight;
-    int lugBottomY =
-        mainDrum.snare.y + mainDrum.snareRimBottomDY - mainDrum.snareRimHeight;
-
-    thickHollowRect(lugX - 4, lugTopY, 8, lugBottomY - lugTopY + 5, 2, WHITE);
-
-    Bres_ThickLine(lugX, lugTopY + 3, lugX, lugBottomY, 2, LIGHTGRAY);
-  }
-
-  int snareStandCenterX = mainDrum.snare.x + (mainDrum.snareWidth / 2);
-  int snareStandTopY =
-      mainDrum.snare.y + mainDrum.snareRimBottomDY + mainDrum.snareRimHeight;
-
-  Bres_ThickLine(snareStandCenterX, snareStandTopY, snareStandCenterX,
-                 snareStandTopY + mainDrum.snareStandRod.height,
-                 mainDrum.snareStandRod.width, WHITE);
-
-  int snareLegLeftX1 = snareStandCenterX + mainDrum.snareStandLegLeftDX[1];
-  int snareLegLeftY1 = snareStandTopY + mainDrum.snareStandLegLeftDY[1];
-  int snareLegLeftX2 = snareStandCenterX + mainDrum.snareStandLegLeftDX[0];
-  int snareLegLeftY2 = snareStandTopY + mainDrum.snareStandLegLeftDY[0];
-  Bres_ThickLine(snareLegLeftX1, snareLegLeftY1, snareLegLeftX2, snareLegLeftY2,
-                 4, WHITE);
-
-  int snareLegRightX1 = snareStandCenterX + mainDrum.snareStandLegRightDX[1];
-  int snareLegRightY1 = snareStandTopY + mainDrum.snareStandLegRightDY[1];
-  int snareLegRightX2 = snareStandCenterX + mainDrum.snareStandLegRightDX[0];
-  int snareLegRightY2 = snareStandTopY + mainDrum.snareStandLegRightDY[0];
-  Bres_ThickLine(snareLegRightX1, snareLegRightY1, snareLegRightX2,
-                 snareLegRightY2, 4, WHITE);
-
-  Bres_ThickLine(snareLegLeftX2 - 10, snareLegLeftY2, snareLegLeftX2 + 10,
-                 snareLegLeftY2, 3, WHITE);
-  Bres_ThickLine(snareLegRightX2 - 10, snareLegRightY2, snareLegRightX2 + 10,
-                 snareLegRightY2, 3, WHITE);
-
-  Bres_ThickLine(mainDrum.cymbalStandRodX, mainDrum.cymbalStandRodDY[0],
-                 mainDrum.cymbalStandRodX, mainDrum.cymbalStandRodDY[1], 5,
-                 WHITE);
-
-  Bres_ThickLine(mainDrum.cymbalLegLeftDX[0], mainDrum.cymbalLegLeftDY[0],
-                 mainDrum.cymbalLegLeftDX[1], mainDrum.cymbalLegLeftDY[1], 5,
-                 WHITE);
-
-  Bres_ThickLine(mainDrum.cymbalLegRightDX[0], mainDrum.cymbalLegRightDY[0],
-                 mainDrum.cymbalLegRightDX[1], mainDrum.cymbalLegRightDY[1], 5,
-                 WHITE);
-
-  Bres_ThickLine(mainDrum.cymbalBoomArmDX[0], mainDrum.cymbalBoomArmDY[0],
-                 mainDrum.cymbalBoomArmDX[1], mainDrum.cymbalBoomArmDY[1], 5,
-                 WHITE);
-
-  MidpointEllipseThick(mainDrum.rideCymbal.x, mainDrum.rideCymbal.y,
-                       mainDrum.cymbalRx, mainDrum.cymbalRy, 3, WHITE);
-
-  MidpointHalfEllipse(mainDrum.hiHatTopCX, mainDrum.hiHatTopCY,
-                      mainDrum.hiHatRX, mainDrum.hiHatRY, HALF_ELLIPSE_TOP,
-                      WHITE);
-  MidpointHalfEllipse(mainDrum.hiHatTopCX, mainDrum.hiHatTopCY + 10,
-                      mainDrum.hiHatRX, mainDrum.hiHatRY, HALF_ELLIPSE_BOTTOM,
-                      WHITE);
-  MidpointHalfEllipse(mainDrum.hiHatTopCX, mainDrum.hiHatTopCY,
-                      mainDrum.hiHatRX, mainDrum.hiHatRY, HALF_ELLIPSE_TOP,
-                      WHITE);
-  MidpointHalfEllipse(mainDrum.hiHatTopCX, mainDrum.hiHatTopCY + 10,
-                      mainDrum.hiHatRX, mainDrum.hiHatRY, HALF_ELLIPSE_BOTTOM,
-                      WHITE);
-  BresenhamLine(mainDrum.hiHatTopCX - mainDrum.hiHatRX - 5, mainDrum.hiHatTopCY,
-                mainDrum.hiHatTopCX + mainDrum.hiHatRX + 5, mainDrum.hiHatTopCY,
-                WHITE);
-  BresenhamLine(mainDrum.hiHatTopCX - mainDrum.hiHatRX - 5,
-                mainDrum.hiHatTopCY + 10,
-                mainDrum.hiHatTopCX + mainDrum.hiHatRX + 5,
-                mainDrum.hiHatTopCY + 10, WHITE);
-
-  Bres_ThickLine(mainDrum.hiHatStandRodX, mainDrum.hiHatStandRodDY[0],
-                 mainDrum.hiHatStandRodX, mainDrum.hiHatStandRodDY[1], 5,
-                 WHITE);
-
-  Bres_ThickLine(mainDrum.hiHatBoomArmDX[0], mainDrum.hiHatBoomArmDY[0],
-                 mainDrum.hiHatBoomArmDX[1], mainDrum.hiHatBoomArmDY[1], 4,
-                 WHITE);
-
-  Bres_ThickLine(mainDrum.hiHatLegLeftDX[0], mainDrum.hiHatLegLeftDY[0],
-                 mainDrum.hiHatLegLeftDX[1], mainDrum.hiHatLegLeftDY[1], 5,
-                 WHITE);
-
-  Bres_ThickLine(mainDrum.hiHatLegRightDX[0], mainDrum.hiHatLegRightDY[0],
-                 mainDrum.hiHatLegRightDX[1], mainDrum.hiHatLegRightDY[1], 5,
-                 WHITE);
-
-  Bres_ThickLine(mainDrum.hiHatLegLeftDX[1] - 10, mainDrum.hiHatLegLeftDY[1],
-                 mainDrum.hiHatLegLeftDX[1] + 10, mainDrum.hiHatLegLeftDY[1], 3,
-                 WHITE);
-  Bres_ThickLine(mainDrum.hiHatLegRightDX[1] - 10, mainDrum.hiHatLegRightDY[1],
-                 mainDrum.hiHatLegRightDX[1] + 10, mainDrum.hiHatLegRightDY[1],
-                 3, WHITE);
+  Vector2 mousePos = GetMousePosition();
+  DrawText(TextFormat("Screen X: %.0f", mousePos.x), 200, 20, 12, WHITE);
+  DrawText(TextFormat("Screen Y: %.0f", mousePos.y), 200, 40, 12, WHITE);
 
   DrawNoteAnimations();
 
