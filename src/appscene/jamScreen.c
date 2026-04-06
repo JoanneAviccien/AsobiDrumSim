@@ -23,6 +23,9 @@ static DrumStick sticks[MAX_STICKS];
 static SparkParticle sparks[MAX_SPARKS];
 static int sparkCount = 0;
 
+static CymbalScaleAnimation cymbalScales[MAX_CYMBAL_SCALES];
+static int cymbalScaleCount = 0;
+
 static AmenDemo amenDemo = {0};
 static int amenDemoActive = 0;
 
@@ -414,6 +417,67 @@ void DrawSparkParticles(void) {
   }
 }
 
+void SpawnCymbalScaleAnimation(float x, float y, float baseRx, float baseRy) {
+  if (cymbalScaleCount >= MAX_CYMBAL_SCALES)
+    return;
+
+  int idx = cymbalScaleCount++;
+  CymbalScaleAnimation *anim = &cymbalScales[idx];
+
+  anim->x = x;
+  anim->y = y;
+  anim->baseRx = baseRx;
+  anim->baseRy = baseRy;
+  anim->life = CYMBAL_SCALE_DURATION;
+  anim->maxLife = CYMBAL_SCALE_DURATION;
+  anim->scaleAmount = 0.0f;
+  anim->active = 1;
+}
+
+void UpdateCymbalScaleAnimations(void) {
+  for (int i = cymbalScaleCount - 1; i >= 0; i--) {
+    cymbalScales[i].life--;
+
+    if (cymbalScales[i].life <= 0) {
+      cymbalScaleCount--;
+      if (i < cymbalScaleCount) {
+        cymbalScales[i] = cymbalScales[cymbalScaleCount];
+      }
+      continue;
+    }
+
+    float progress = 1.0f - (float)cymbalScales[i].life / cymbalScales[i].maxLife;
+
+    if (progress < 0.3f) {
+      float t = progress / 0.3f;
+      cymbalScales[i].scaleAmount = t * 1.0f;
+    } else if (progress < 0.6f) {
+      float t = (progress - 0.3f) / 0.3f;
+      cymbalScales[i].scaleAmount = 1.0f - t * 0.3f;
+    } else {
+      float t = (progress - 0.6f) / 0.4f;
+      cymbalScales[i].scaleAmount = 0.7f - t * 0.7f;
+    }
+  }
+}
+
+void DrawCymbalScaleAnimations(void) {
+  for (int i = 0; i < cymbalScaleCount; i++) {
+    if (!cymbalScales[i].active || cymbalScales[i].life <= 0)
+      continue;
+
+    float rx = cymbalScales[i].baseRx + (cymbalScales[i].baseRx * cymbalScales[i].scaleAmount * 0.15f);
+    float ry = cymbalScales[i].baseRy + (cymbalScales[i].baseRy * cymbalScales[i].scaleAmount * 0.15f);
+
+    float alpha = (float)cymbalScales[i].life / cymbalScales[i].maxLife;
+    Color animColor = WHITE;
+    animColor.a = (unsigned char)(alpha * 200);
+
+    MidpointEllipseThick((int)cymbalScales[i].x, (int)cymbalScales[i].y,
+                         (int)rx, (int)ry, 3, animColor);
+  }
+}
+
 void UpdateStickAnimations(void) {
   for (int i = 0; i < MAX_STICKS; i++) {
     if (!sticks[i].active)
@@ -487,6 +551,14 @@ static void TriggerDrumHit(DrumPad *pads, int padIndex) {
   Vector2 stickPos = {noteOrigin.x, noteOrigin.y};
   SpawnSparkParticles(stickPos, noteColor);
   SpawnStickAnimation(stickPos, padIndex);
+
+  if (padIndex == 2 || padIndex == 3) {
+    SpawnCymbalScaleAnimation(162, 184, 100, 15);
+  }
+
+  if (padIndex >= 7 && padIndex <= 10) {
+    SpawnCymbalScaleAnimation(955, 155, 100, 15);
+  }
 }
 
 static int FindPadIndexByName(DrumPad *pads, const char *name) {
@@ -713,12 +785,21 @@ void UpdateDrumPads(DrumPad *pads, int count) {
       Vector2 stickPos = {noteOrigin.x, noteOrigin.y};
       SpawnSparkParticles(stickPos, noteColor);
       SpawnStickAnimation(stickPos, i);
+
+      if (i == 2 || i == 3) {
+        SpawnCymbalScaleAnimation(162, 184, 100, 15);
+      }
+
+      if (i >= 7 && i <= 10) {
+        SpawnCymbalScaleAnimation(955, 155, 100, 15);
+      }
     }
   }
 
   UpdateNoteAnimations();
   UpdateStickAnimations();
   UpdateSparkParticles();
+  UpdateCymbalScaleAnimations();
 }
 
 void drawStudioBackground(void) {
@@ -1153,6 +1234,8 @@ void jamScreen(void) {
   DrawNoteAnimations();
 
   DrawSparkParticles();
+
+  DrawCymbalScaleAnimations();
 
   DrawStickAnimations();
 

@@ -19,10 +19,12 @@
 #define MAX_NOTES 50
 #define MAX_STICKS 14
 #define MAX_SPARKS 120
+#define MAX_CYMBAL_SCALES 10
 #define NOTE_ANIM_DURATION 45
 #define HIT_FEED_DURATION 10
 #define STICK_ANIM_DURATION 20
 #define SPARK_LIFETIME 25
+#define CYMBAL_SCALE_DURATION 20
 #define AMEN_DEMO_BPM 65
 
 typedef struct {
@@ -63,6 +65,16 @@ typedef struct {
   int noteType;
   Color color;
 } NoteAnimation;
+
+typedef struct {
+  float x, y;
+  float baseRx;
+  float baseRy;
+  int life;
+  int maxLife;
+  float scaleAmount;
+  int active;
+} CymbalScaleAnimation;
 
 typedef struct {
   Rectangle zone;
@@ -166,5 +178,8 @@ void DrawAmenDemoButton(Rectangle btn);
 void SpawnSparkParticles(Vector2 hitPos, Color noteColor);
 void UpdateSparkParticles(void);
 void DrawSparkParticles(void);
+void SpawnCymbalScaleAnimation(float x, float y, float baseRx, float baseRy);
+void UpdateCymbalScaleAnimations(void);
+void DrawCymbalScaleAnimations(void);
 
 #endif
