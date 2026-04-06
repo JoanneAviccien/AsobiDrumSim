@@ -2,7 +2,7 @@ RAYLIB_PATH = C:/raylib/raylib/src
 
 CC     = gcc
 CFLAGS = -Wall -O2 -I. -Isrc/algo -Isrc/appscene -I$(RAYLIB_PATH)/
-LIBS   = -L$(RAYLIB_PATH)/ -lraylib -lopengl32 -lgdi32 -lwinmm -lm
+LIBS   = -L$(RAYLIB_PATH)/ -lraylib -lopengl32 -lgdi32 -lwinmm -lpthread -lm
 
 TARGET = VDrumKitEX.exe
 

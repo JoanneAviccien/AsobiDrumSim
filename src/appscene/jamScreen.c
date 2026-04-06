@@ -8,6 +8,8 @@
 #include "global.h"
 #include "raylib.h"
 #include <math.h>
+#include <pthread.h>
+#include <time.h>
 
 static RenderTexture2D backgroundTexture = {0};
 static bool backgroundInitialized = false;
@@ -28,6 +30,17 @@ static int cymbalScaleCount = 0;
 
 static AmenDemo amenDemo = {0};
 static int amenDemoActive = 0;
+
+static int metronomeActive = 0;
+static int metronomeBpm = 120;
+static int metronomeTimeSig = 4;
+static int metronomeBeat = 0;
+static int metronomePopupOpen = 0;
+static pthread_t metronomeThread;
+static volatile int metronomeRunning = 0;
+
+static Sound sndMetronomeClick = {0};
+static Sound sndMetronomeAccent = {0};
 
 static const int beatKick[16] = {1, 0, 0, 0, 0, 0, 0, 0,
                                  1, 0, 0, 0, 0, 0, 0, 0};
@@ -404,13 +417,25 @@ void DrawSparkParticles(void) {
       float size = (float)sparks[i].life / sparks[i].maxLife;
       int pixelSize = (int)(size * 3) + 1;
 
+      Color glowOuter = sparks[i].color;
+      glowOuter.a = (unsigned char)(size * 80);
+      Color glowMid = sparks[i].color;
+      glowMid.a = (unsigned char)(size * 160);
+      Color glowCore = sparks[i].color;
+      glowCore.a = (unsigned char)(size * 255);
+
       for (int dx = 0; dx < pixelSize; dx++) {
         for (int dy = 0; dy < pixelSize; dy++) {
-          Bres_ThickLine((int)sparks[i].position.x,
-                         (int)sparks[i].position.y + dy,
-                         (int)sparks[i].position.x + 10,
-                         (int)sparks[i].position.y + GetRandomValue(10, 15), 2,
-                         sparks[i].color);
+          int endY = (int)sparks[i].position.y + GetRandomValue(10, 15);
+          int startY = (int)sparks[i].position.y + dy;
+
+          Bres_ThickLine((int)sparks[i].position.x, startY,
+                         (int)sparks[i].position.x + 14, endY + 2, 4,
+                         glowOuter);
+          Bres_ThickLine((int)sparks[i].position.x, startY,
+                         (int)sparks[i].position.x + 12, endY + 1, 3, glowMid);
+          Bres_ThickLine((int)sparks[i].position.x, startY,
+                         (int)sparks[i].position.x + 10, endY, 2, glowCore);
         }
       }
     }
@@ -446,7 +471,8 @@ void UpdateCymbalScaleAnimations(void) {
       continue;
     }
 
-    float progress = 1.0f - (float)cymbalScales[i].life / cymbalScales[i].maxLife;
+    float progress =
+        1.0f - (float)cymbalScales[i].life / cymbalScales[i].maxLife;
 
     if (progress < 0.3f) {
       float t = progress / 0.3f;
@@ -466,8 +492,10 @@ void DrawCymbalScaleAnimations(void) {
     if (!cymbalScales[i].active || cymbalScales[i].life <= 0)
       continue;
 
-    float rx = cymbalScales[i].baseRx + (cymbalScales[i].baseRx * cymbalScales[i].scaleAmount * 0.15f);
-    float ry = cymbalScales[i].baseRy + (cymbalScales[i].baseRy * cymbalScales[i].scaleAmount * 0.15f);
+    float rx = cymbalScales[i].baseRx +
+               (cymbalScales[i].baseRx * cymbalScales[i].scaleAmount * 0.15f);
+    float ry = cymbalScales[i].baseRy +
+               (cymbalScales[i].baseRy * cymbalScales[i].scaleAmount * 0.15f);
 
     float alpha = (float)cymbalScales[i].life / cymbalScales[i].maxLife;
     Color animColor = WHITE;
@@ -475,6 +503,156 @@ void DrawCymbalScaleAnimations(void) {
 
     MidpointEllipseThick((int)cymbalScales[i].x, (int)cymbalScales[i].y,
                          (int)rx, (int)ry, 3, animColor);
+  }
+}
+
+static void *MetronomeThreadFunc(void *arg) {
+  (void)arg;
+  while (metronomeRunning) {
+    if (metronomeActive) {
+      if (metronomeBeat == 0 && sndMetronomeAccent.stream.buffer != NULL) {
+        PlaySound(sndMetronomeAccent);
+      } else if (sndMetronomeClick.stream.buffer != NULL) {
+        PlaySound(sndMetronomeClick);
+      }
+
+      metronomeBeat = (metronomeBeat + 1) % metronomeTimeSig;
+
+      int msPerBeat = 60000 / metronomeBpm;
+      struct timespec ts;
+      ts.tv_sec = msPerBeat / 1000;
+      ts.tv_nsec = (msPerBeat % 1000) * 1000000L;
+      nanosleep(&ts, NULL);
+    } else {
+      struct timespec ts;
+      ts.tv_sec = 0;
+      ts.tv_nsec = 50000000L;
+      nanosleep(&ts, NULL);
+    }
+  }
+  return NULL;
+}
+
+static void InitMetronomeSounds(void) {
+  sndMetronomeClick = LoadSound("audio/interact.wav");
+  sndMetronomeAccent = LoadSound("audio/interact.wav");
+
+  SetSoundVolume(sndMetronomeClick, 0.5f);
+  SetSoundVolume(sndMetronomeAccent, 0.8f);
+}
+
+static void UnloadMetronomeSounds(void) {
+  if (sndMetronomeClick.stream.buffer != NULL) {
+    UnloadSound(sndMetronomeClick);
+    sndMetronomeClick = (Sound){0};
+  }
+  if (sndMetronomeAccent.stream.buffer != NULL) {
+    UnloadSound(sndMetronomeAccent);
+    sndMetronomeAccent = (Sound){0};
+  }
+}
+
+static void StartMetronomeThread(void) {
+  if (!metronomeRunning) {
+    metronomeRunning = 1;
+    pthread_create(&metronomeThread, NULL, MetronomeThreadFunc, NULL);
+    pthread_detach(metronomeThread);
+  }
+}
+
+static void StopMetronomeThread(void) {
+  metronomeRunning = 0;
+  pthread_join(metronomeThread, NULL);
+}
+
+static void DrawMetronomeButton(void) {
+  Rectangle metBtn = {20, scrHeight - 60, 140, 40};
+
+  Color btnColor = metronomeActive ? GREEN : (Color){100, 100, 100, 255};
+  DrawRectangleRec(metBtn, btnColor);
+  DrawRectangleLinesEx(metBtn, 2, WHITE);
+
+  const char *btnText = metronomeActive ? "METRO ON" : "METRO OFF";
+  int textWidth = MeasureText(btnText, 14);
+  DrawText(btnText, (int)(metBtn.x + (metBtn.width - textWidth) / 2),
+           (int)(metBtn.y + (metBtn.height - 14) / 2), 14, WHITE);
+
+  if (CheckCollisionPointRec(GetMousePosition(), metBtn) &&
+      IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+    if (!metronomeActive) {
+      metronomeActive = 1;
+      metronomeBeat = 0;
+      if (!sndMetronomeClick.stream.buffer) {
+        InitMetronomeSounds();
+      }
+      StartMetronomeThread();
+    } else {
+      metronomeActive = 0;
+    }
+    PlaySound(btnAction);
+  }
+
+  if (CheckCollisionPointRec(GetMousePosition(), metBtn) &&
+      IsMouseButtonPressed(MOUSE_RIGHT_BUTTON)) {
+    metronomePopupOpen = !metronomePopupOpen;
+    PlaySound(btnAction);
+  }
+}
+
+static void DrawMetronomePopup(void) {
+  if (!metronomePopupOpen)
+    return;
+
+  int popupW = 280;
+  int popupH = 180;
+  int popupX = 20;
+  int popupY = scrHeight - 60 - popupH - 10;
+
+  DrawRectangle(popupX, popupY, popupW, popupH, (Color){30, 30, 30, 230});
+  DrawRectangleLines(popupX, popupY, popupW, popupH, WHITE);
+
+  DrawText("METRONOME SETTINGS", popupX + 40, popupY + 10, 14,
+           (Color){255, 200, 50, 255});
+
+  int labelY = popupY + 45;
+  int sliderY = popupY + 42;
+  int valueY = popupY + 45;
+
+  DrawText("BPM:", popupX + 15, labelY, 12, WHITE);
+
+  float bpmFloat = (float)metronomeBpm;
+  if (GuiSlider((Rectangle){popupX + 60, sliderY, 130, 16}, NULL, NULL,
+                &bpmFloat, 30.0f, 300.0f)) {
+    metronomeBpm = (int)bpmFloat;
+    if (metronomeBpm < 30)
+      metronomeBpm = 30;
+  }
+  DrawText(TextFormat("%d", metronomeBpm), popupX + 200, valueY, 12, YELLOW);
+
+  DrawText("TIME SIG:", popupX + 15, labelY + 40, 12, WHITE);
+
+  float sigFloat = (float)metronomeTimeSig;
+  if (GuiSlider((Rectangle){popupX + 90, sliderY + 38, 100, 16}, NULL, NULL,
+                &sigFloat, 2.0f, 8.0f)) {
+    metronomeTimeSig = (int)sigFloat;
+    if (metronomeTimeSig < 2)
+      metronomeTimeSig = 2;
+  }
+  DrawText(TextFormat("%d/%d", metronomeTimeSig, 4), popupX + 200, valueY + 40,
+           12, YELLOW);
+
+  Rectangle closeBtn = {popupX + popupW - 50, popupY + 5, 40, 20};
+  if (GuiButton(closeBtn, "X")) {
+    metronomePopupOpen = 0;
+    PlaySound(btnAction);
+  }
+
+  if (metronomeActive) {
+    int indicatorY = popupY + popupH - 30;
+    Color indicatorColor = (metronomeBeat == 0) ? RED : GREEN;
+    DrawCircle(popupX + 30, indicatorY, 6, indicatorColor);
+    DrawText(TextFormat("Beat: %d", metronomeBeat + 1), popupX + 50,
+             indicatorY - 6, 12, WHITE);
   }
 }
 
@@ -1244,11 +1422,16 @@ void jamScreen(void) {
   Rectangle amenDemoBtn = {scrWidth - 200, 40, 160, 50};
   DrawAmenDemoButton(amenDemoBtn);
 
+  DrawMetronomeButton();
+  DrawMetronomePopup();
+
   if (IsKeyPressed(KEY_ESCAPE)) {
     currentScreen = SCREEN_MENU;
     PlayMusicStream(amenberak);
     amenDemoActive = 0;
     amenDemo.active = 0;
+    metronomeActive = 0;
+    metronomePopupOpen = 0;
   }
 
   if (GuiButton(backBtn, "Kembali")) {
@@ -1256,5 +1439,7 @@ void jamScreen(void) {
     PlayMusicStream(amenberak);
     amenDemoActive = 0;
     amenDemo.active = 0;
+    metronomeActive = 0;
+    metronomePopupOpen = 0;
   }
 }
