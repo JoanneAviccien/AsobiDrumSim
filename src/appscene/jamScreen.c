@@ -20,12 +20,18 @@ static int noteCount = 0;
 
 static DrumStick sticks[MAX_STICKS];
 
+static SparkParticle sparks[MAX_SPARKS];
+static int sparkCount = 0;
+
 static AmenDemo amenDemo = {0};
 static int amenDemoActive = 0;
 
-static const int beatKick[16] =   {1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0};
-static const int beatSnare[16] =  {0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0};
-static const int beatHiHat[16] =  {1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0};
+static const int beatKick[16] = {1, 0, 0, 0, 0, 0, 0, 0,
+                                 1, 0, 0, 0, 0, 0, 0, 0};
+static const int beatSnare[16] = {0, 0, 0, 0, 1, 0, 0, 0,
+                                  0, 0, 0, 0, 1, 0, 0, 0};
+static const int beatHiHat[16] = {1, 0, 1, 0, 1, 0, 1, 0,
+                                  1, 0, 1, 0, 1, 0, 1, 0};
 
 typedef enum { NOTE_SINGLE = 0, NOTE_DOUBLE, NOTE_QUARTER } NoteType;
 
@@ -328,10 +334,9 @@ void SpawnStickAnimation(Vector2 hitPos, int padIndex) {
 
   DrumStick *stick = &sticks[padIndex];
 
-  int yOffset = (padIndex == 1 || padIndex == 4 || padIndex == 5 ||
-                 padIndex == 6)
-                    ? 150
-                    : 90;
+  int yOffset =
+      (padIndex == 1 || padIndex == 4 || padIndex == 5 || padIndex == 6) ? 150
+                                                                         : 90;
 
   stick->startPos = hitPos;
   stick->position = (Vector2){hitPos.x + 50, hitPos.y - yOffset};
@@ -340,6 +345,73 @@ void SpawnStickAnimation(Vector2 hitPos, int padIndex) {
   stick->rotation = -0.8f;
   stick->color = WHITE;
   stick->active = 1;
+}
+
+void SpawnSparkParticles(Vector2 hitPos, Color noteColor) {
+  int numSparks = GetRandomValue(5, 8);
+
+  for (int i = 0; i < numSparks && sparkCount < MAX_SPARKS; i++) {
+    int idx = sparkCount++;
+    SparkParticle *spark = &sparks[idx];
+
+    spark->position = hitPos;
+
+    float angle = (GetRandomValue(0, 360) * 3.14159f) / 180.0f;
+    float speed = (float)GetRandomValue(2, 8);
+    spark->velocity.x = cosf(angle) * speed;
+    spark->velocity.y = sinf(angle) * speed - 2.0f;
+
+    spark->life = SPARK_LIFETIME;
+    spark->maxLife = SPARK_LIFETIME;
+
+    float variation = (float)GetRandomValue(0, 100) / 100.0f;
+    spark->color = (Color){
+        (unsigned char)(noteColor.r * 0.5f + 255 * 0.5f * variation),
+        (unsigned char)(noteColor.g * 0.5f + 255 * 0.5f * variation),
+        (unsigned char)(noteColor.b * 0.5f + 255 * 0.5f * variation), 255};
+    spark->active = 1;
+  }
+}
+
+void UpdateSparkParticles(void) {
+  for (int i = sparkCount - 1; i >= 0; i--) {
+    sparks[i].life--;
+
+    if (sparks[i].life <= 0) {
+      sparkCount--;
+      if (i < sparkCount) {
+        sparks[i] = sparks[sparkCount];
+      }
+      continue;
+    }
+
+    sparks[i].position.x += sparks[i].velocity.x;
+    sparks[i].position.y += sparks[i].velocity.y;
+    sparks[i].velocity.y += 0.3f;
+    sparks[i].velocity.x *= 0.98f;
+
+    float alpha = (float)sparks[i].life / sparks[i].maxLife;
+    sparks[i].color.a = (unsigned char)(alpha * 255);
+  }
+}
+
+void DrawSparkParticles(void) {
+  for (int i = 0; i < sparkCount; i++) {
+    if (sparks[i].active && sparks[i].life > 0) {
+      float size = (float)sparks[i].life / sparks[i].maxLife;
+      int pixelSize = (int)(size * 3) + 1;
+
+      for (int dx = 0; dx < pixelSize; dx++) {
+        for (int dy = 0; dy < pixelSize; dy++) {
+          Bres_ThickLine((int)sparks[i].position.x,
+                         (int)sparks[i].position.y + dy,
+                         (int)sparks[i].position.x + 10,
+                         (int)sparks[i].position.y + GetRandomValue(10, 15), 2,
+                         sparks[i].color);
+        }
+      }
+    }
+  }
 }
 
 void UpdateStickAnimations(void) {
@@ -409,9 +481,11 @@ static void TriggerDrumHit(DrumPad *pads, int padIndex) {
     noteOrigin.y = pads[padIndex].zone.y + 10;
   }
 
+  Color noteColor = GetNoteColor(pads[padIndex].drumName);
   SpawnNoteAnimation(noteOrigin, pads[padIndex].drumName);
 
   Vector2 stickPos = {noteOrigin.x, noteOrigin.y};
+  SpawnSparkParticles(stickPos, noteColor);
   SpawnStickAnimation(stickPos, padIndex);
 }
 
@@ -625,24 +699,26 @@ void UpdateDrumPads(DrumPad *pads, int count) {
       PlaySound(*pads[i].sound);
       pads[i].hitFeedback = HIT_FEED_DURATION;
 
-      Vector2 noteOrigin = {
-          pads[i].zone.x + pads[i].zone.width / 2,
-          pads[i].zone.y + pads[i].zone.height / 2};
+      Vector2 noteOrigin = {pads[i].zone.x + pads[i].zone.width / 2,
+                            pads[i].zone.y + pads[i].zone.height / 2};
 
       if (i == 1 || i == 4 || i == 5 || i == 6 || i == 11 || i == 12 ||
           i == 13) {
         noteOrigin.y = pads[i].zone.y + 10;
       }
 
+      Color noteColor = GetNoteColor(pads[i].drumName);
       SpawnNoteAnimation(noteOrigin, pads[i].drumName);
 
       Vector2 stickPos = {noteOrigin.x, noteOrigin.y};
+      SpawnSparkParticles(stickPos, noteColor);
       SpawnStickAnimation(stickPos, i);
     }
   }
 
   UpdateNoteAnimations();
   UpdateStickAnimations();
+  UpdateSparkParticles();
 }
 
 void drawStudioBackground(void) {
@@ -675,7 +751,7 @@ void CleanupBackgroundTexture(void) {
     backgroundTexture = (RenderTexture2D){0};
     backgroundInitialized = false;
   }
-  
+
   if (drumKitTextureInitialized) {
     UnloadRenderTexture(drumKitTexture);
     drumKitTexture = (RenderTexture2D){0};
@@ -687,13 +763,13 @@ static void renderDrumKitToTexture(DrumKitConfig *mainDrum) {
   if (drumKitTextureInitialized) {
     UnloadRenderTexture(drumKitTexture);
   }
-  
+
   drumKitTexture = LoadRenderTexture(scrWidth, scrHeight);
   drumKitTextureInitialized = true;
-  
+
   BeginTextureMode(drumKitTexture);
   ClearBackground(BLANK);
-  
+
   int kickLegLeftX1 = mainDrum->kick.x + mainDrum->kickLegLeftDX[0];
   int kickLegLeftY1 = mainDrum->kick.y + mainDrum->kickLegLeftDY[0];
   int kickLegLeftX2 = mainDrum->kick.x + mainDrum->kickLegLeftDX[1];
@@ -742,8 +818,9 @@ static void renderDrumKitToTexture(DrumKitConfig *mainDrum) {
     Bres_ThickLine(lugX,
                    mainDrum->floorTom.y + mainDrum->floorTomRimBottomDY -
                        mainDrum->floorTomLugHeight,
-                   lugX, mainDrum->floorTom.y + mainDrum->floorTomRimBottomDY + 5,
-                   2, WHITE);
+                   lugX,
+                   mainDrum->floorTom.y + mainDrum->floorTomRimBottomDY + 5, 2,
+                   WHITE);
   }
 
   int ftStandCenterX = mainDrum->floorTom.x + (mainDrum->floorTomWidth / 2);
@@ -774,7 +851,8 @@ static void renderDrumKitToTexture(DrumKitConfig *mainDrum) {
                   mainDrum->tom1.y + mainDrum->tomRimBottomDY,
                   mainDrum->tomRimWidth, mainDrum->tomRimHeight,
                   mainDrum->tomRimStroke, WHITE);
-  thickHollowRect(mainDrum->tom1.x - 5, mainDrum->tom1.y + mainDrum->tomRimTopDY,
+  thickHollowRect(mainDrum->tom1.x - 5,
+                  mainDrum->tom1.y + mainDrum->tomRimTopDY,
                   mainDrum->tomRimWidth, mainDrum->tomRimHeight,
                   mainDrum->tomRimStroke, WHITE);
 
@@ -788,7 +866,8 @@ static void renderDrumKitToTexture(DrumKitConfig *mainDrum) {
                   mainDrum->tom2.y + mainDrum->tomRimBottomDY,
                   mainDrum->tomRimWidth, mainDrum->tomRimHeight,
                   mainDrum->tomRimStroke, WHITE);
-  thickHollowRect(mainDrum->tom2.x - 5, mainDrum->tom2.y + mainDrum->tomRimTopDY,
+  thickHollowRect(mainDrum->tom2.x - 5,
+                  mainDrum->tom2.y + mainDrum->tomRimTopDY,
                   mainDrum->tomRimWidth, mainDrum->tomRimHeight,
                   mainDrum->tomRimStroke, WHITE);
 
@@ -800,7 +879,8 @@ static void renderDrumKitToTexture(DrumKitConfig *mainDrum) {
                        mainDrum->tomLugHeight,
                    2, WHITE);
     Bres_ThickLine(
-        lugX, mainDrum->tom1.y + mainDrum->tomRimBottomDY - mainDrum->tomLugHeight,
+        lugX,
+        mainDrum->tom1.y + mainDrum->tomRimBottomDY - mainDrum->tomLugHeight,
         lugX, mainDrum->tom1.y + mainDrum->tomRimBottomDY + 5, 2, WHITE);
   }
 
@@ -812,15 +892,16 @@ static void renderDrumKitToTexture(DrumKitConfig *mainDrum) {
                        mainDrum->tomLugHeight,
                    2, WHITE);
     Bres_ThickLine(
-        lugX, mainDrum->tom2.y + mainDrum->tomRimBottomDY - mainDrum->tomLugHeight,
+        lugX,
+        mainDrum->tom2.y + mainDrum->tomRimBottomDY - mainDrum->tomLugHeight,
         lugX, mainDrum->tom2.y + mainDrum->tomRimBottomDY + 5, 2, WHITE);
   }
   int tomBarY = mainDrum->tom1.y + mainDrum->tomBarDY;
   int tomBarXStart = mainDrum->tom1.x + mainDrum->tomBarDX;
   Bres_ThickLine(tomBarXStart, tomBarY, mainDrum->tom2.x, tomBarY,
                  mainDrum->tomStroke, WHITE);
-  Bres_ThickLine(tomBarXStart, tomBarY + 20, mainDrum->tom2.x - 24, tomBarY + 20,
-                 mainDrum->tomStroke, WHITE);
+  Bres_ThickLine(tomBarXStart, tomBarY + 20, mainDrum->tom2.x - 24,
+                 tomBarY + 20, mainDrum->tomStroke, WHITE);
   Bres_ThickLine(mainDrum->tom2.x, tomBarY + 20, mainDrum->tom2.x - 6,
                  tomBarY + 20, mainDrum->tomStroke, WHITE);
   Bres_ThickLine(mainDrum->tom2.x - 24, tomBarY + 20, mainDrum->tom2.x - 24,
@@ -848,8 +929,8 @@ static void renderDrumKitToTexture(DrumKitConfig *mainDrum) {
     int lugX = mainDrum->snare.x + (i * snareLugSpacing);
     int lugTopY =
         mainDrum->snare.y + mainDrum->snareRimTopDY + mainDrum->snareRimHeight;
-    int lugBottomY =
-        mainDrum->snare.y + mainDrum->snareRimBottomDY - mainDrum->snareRimHeight;
+    int lugBottomY = mainDrum->snare.y + mainDrum->snareRimBottomDY -
+                     mainDrum->snareRimHeight;
 
     thickHollowRect(lugX - 4, lugTopY, 8, lugBottomY - lugTopY + 5, 2, WHITE);
 
@@ -892,8 +973,8 @@ static void renderDrumKitToTexture(DrumKitConfig *mainDrum) {
                  WHITE);
 
   Bres_ThickLine(mainDrum->cymbalLegRightDX[0], mainDrum->cymbalLegRightDY[0],
-                 mainDrum->cymbalLegRightDX[1], mainDrum->cymbalLegRightDY[1], 5,
-                 WHITE);
+                 mainDrum->cymbalLegRightDX[1], mainDrum->cymbalLegRightDY[1],
+                 5, WHITE);
 
   Bres_ThickLine(mainDrum->cymbalBoomArmDX[0], mainDrum->cymbalBoomArmDY[0],
                  mainDrum->cymbalBoomArmDX[1], mainDrum->cymbalBoomArmDY[1], 5,
@@ -914,9 +995,10 @@ static void renderDrumKitToTexture(DrumKitConfig *mainDrum) {
   MidpointHalfEllipse(mainDrum->hiHatTopCX, mainDrum->hiHatTopCY + 10,
                       mainDrum->hiHatRX, mainDrum->hiHatRY, HALF_ELLIPSE_BOTTOM,
                       WHITE);
-  BresenhamLine(mainDrum->hiHatTopCX - mainDrum->hiHatRX - 5, mainDrum->hiHatTopCY,
-                mainDrum->hiHatTopCX + mainDrum->hiHatRX + 5, mainDrum->hiHatTopCY,
-                WHITE);
+  BresenhamLine(mainDrum->hiHatTopCX - mainDrum->hiHatRX - 5,
+                mainDrum->hiHatTopCY,
+                mainDrum->hiHatTopCX + mainDrum->hiHatRX + 5,
+                mainDrum->hiHatTopCY, WHITE);
   BresenhamLine(mainDrum->hiHatTopCX - mainDrum->hiHatRX - 5,
                 mainDrum->hiHatTopCY + 10,
                 mainDrum->hiHatTopCX + mainDrum->hiHatRX + 5,
@@ -939,12 +1021,13 @@ static void renderDrumKitToTexture(DrumKitConfig *mainDrum) {
                  WHITE);
 
   Bres_ThickLine(mainDrum->hiHatLegLeftDX[1] - 10, mainDrum->hiHatLegLeftDY[1],
-                 mainDrum->hiHatLegLeftDX[1] + 10, mainDrum->hiHatLegLeftDY[1], 3,
-                 WHITE);
-  Bres_ThickLine(mainDrum->hiHatLegRightDX[1] - 10, mainDrum->hiHatLegRightDY[1],
-                 mainDrum->hiHatLegRightDX[1] + 10, mainDrum->hiHatLegRightDY[1],
+                 mainDrum->hiHatLegLeftDX[1] + 10, mainDrum->hiHatLegLeftDY[1],
                  3, WHITE);
-  
+  Bres_ThickLine(mainDrum->hiHatLegRightDX[1] - 10,
+                 mainDrum->hiHatLegRightDY[1],
+                 mainDrum->hiHatLegRightDX[1] + 10,
+                 mainDrum->hiHatLegRightDY[1], 3, WHITE);
+
   EndTextureMode();
 }
 
@@ -961,7 +1044,7 @@ void jamScreen(void) {
                              -(float)backgroundTexture.texture.height},
                  (Vector2){0, 0}, WHITE);
 
-  DrumKitConfig mainDrum = {
+  static DrumKitConfig mainDrum = {
       .kick = {.x = scrWidth / 2, .y = (scrHeight / 2) + 80},
       .kickOuterRadius = 150,
       .kickInnerRadius = 140,
@@ -1068,6 +1151,8 @@ void jamScreen(void) {
   DrawText(TextFormat("Screen Y: %.0f", mousePos.y), 200, 40, 12, WHITE);
 
   DrawNoteAnimations();
+
+  DrawSparkParticles();
 
   DrawStickAnimations();
 

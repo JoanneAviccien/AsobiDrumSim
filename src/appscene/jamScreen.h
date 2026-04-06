@@ -18,14 +18,25 @@
 #define MAX_KEYBINDS 14
 #define MAX_NOTES 50
 #define MAX_STICKS 14
+#define MAX_SPARKS 120
 #define NOTE_ANIM_DURATION 45
 #define HIT_FEED_DURATION 10
 #define STICK_ANIM_DURATION 20
+#define SPARK_LIFETIME 25
 #define AMEN_DEMO_BPM 65
 
 typedef struct {
   int x, y;
 } Anchor;
+
+typedef struct {
+  Vector2 position;
+  Vector2 velocity;
+  int life;
+  int maxLife;
+  Color color;
+  int active;
+} SparkParticle;
 
 typedef struct {
   Vector2 position;
@@ -152,5 +163,8 @@ void SpawnNoteAnimation(Vector2 origin, const char *drumName);
 void InitAmenDemo(int bpm);
 void UpdateAmenDemo(DrumPad *pads);
 void DrawAmenDemoButton(Rectangle btn);
+void SpawnSparkParticles(Vector2 hitPos, Color noteColor);
+void UpdateSparkParticles(void);
+void DrawSparkParticles(void);
 
 #endif
