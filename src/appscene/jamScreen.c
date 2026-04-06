@@ -534,8 +534,8 @@ static void *MetronomeThreadFunc(void *arg) {
 }
 
 static void InitMetronomeSounds(void) {
-  sndMetronomeClick = LoadSound("audio/interact.wav");
-  sndMetronomeAccent = LoadSound("audio/interact.wav");
+  sndMetronomeClick = LoadSound("audio/metronomeclick.wav");
+  sndMetronomeAccent = LoadSound("audio/metronomeclick.wav");
 
   SetSoundVolume(sndMetronomeClick, 0.5f);
   SetSoundVolume(sndMetronomeAccent, 0.8f);
